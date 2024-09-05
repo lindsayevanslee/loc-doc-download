@@ -10,16 +10,16 @@ from selenium.common.exceptions import StaleElementReferenceException, NoSuchEle
 import os
 import json
 
-def get_publication_title(driver, xpath):
+def get_publication_info(driver, xpath, item_description):
     try:
         # Wait for the title element to be present
-        title_element = WebDriverWait(driver, 10).until(
+        info_element = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, xpath))
         )
-        return title_element.text.strip()
+        return info_element.text.strip()
     except Exception as e:
-        print(f"Error getting publication title: {str(e)}")
-        return "Unknown_Publication"
+        print(f"Error getting publication {item_description}: {str(e)}")
+        return f"Unknown_{item_description}"
 
 def sanitize_filename(filename):
     invalid_chars = '<>:"/\\|?*'  # Invalid characters for a filename
@@ -62,12 +62,15 @@ def download_newspaper_pages(url):
     driver.get(url)
 
     while True:  # Main loop to cycle through all issues
-        # Get the publication title and sanitize it to use as a folder name
-        publication_title = get_publication_title(driver, './/div[@id="item-cataloged-data"]//ul[@aria-labelledby="item-title"]/li')
+        # Get the publication title and date and sanitize it to use as a folder name
+        #publication_title = get_publication_info(driver, './/div[@id="item-cataloged-data"]//ul[@aria-labelledby="item-title"]/li', "title")
+        publication_title = get_publication_info(driver, './/div[@id="part-of"]//ul[@aria-labelledby="item-facet-part-of"]/li[1]/a', "title")
+        publication_date = get_publication_info(driver, './/div[@id="facets-box"]//ul[@aria-labelledby="item-facet-dates"]/li/a', "date")
         
-        print(f"Downloading pages of {publication_title}")
+
+        print(f"Downloading pages of {publication_title} - {publication_date}")
         
-        folder_name = sanitize_filename(publication_title)
+        folder_name = sanitize_filename(publication_title) + "/" + sanitize_filename(publication_date)
         
         download_folder = os.path.join(os.getcwd(), "downloads", folder_name)
         os.makedirs(download_folder, exist_ok=True)
@@ -150,3 +153,8 @@ def download_newspaper_pages(url):
 # URL of first page of first issue
 newspaper_url = "https://www.loc.gov/resource/sn96086912/1882-10-07/ed-1/?sp=1&st=image"
 download_newspaper_pages(newspaper_url)
+
+
+#TODO:
+#try again if a page doesn't download properly
+#also download the OCR text
