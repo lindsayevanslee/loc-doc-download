@@ -9,19 +9,52 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException
 import os
 
+
+#function to pull publication title
+def get_publication_title(driver, xpath):
+    try:
+        title_element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, xpath))
+        )
+        return title_element.text.strip()
+    except Exception as e:
+        print(f"Error getting publication title: {str(e)}")
+        return "Unknown_Publication"
+
+#function to sanitize file name
+def sanitize_filename(filename):
+    # Remove or replace characters that are invalid in file names
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        filename = filename.replace(char, '_')
+    return filename
+
+#function to download newspaper pages
 def download_newspaper_pages(url):
     chrome_options = Options()
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.get(url)
+
+    # Get the publication title and create a sanitized folder name
+    publication_title = get_publication_title(driver, './/div[@id="item-cataloged-data"]//ul[@aria-labelledby="item-title"]/li') 
+    folder_name = sanitize_filename(publication_title)
+    
+    # Create the folder
+    download_folder = os.path.join(os.getcwd(), "downloads", folder_name)
+    os.makedirs(download_folder, exist_ok=True)
+
+    # Update Chrome options with the new download directory
     chrome_options.add_experimental_option("prefs", {
-        "download.default_directory": os.path.join(os.getcwd(), "newspaper_pdfs"),
+        "download.default_directory": os.path.join(os.getcwd(), download_folder),
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "plugins.always_open_pdf_externally": True
     })
 
+    # Restart the browser with the new options
+    driver.quit()
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
-
-    os.makedirs("newspaper_pdfs", exist_ok=True)
 
     while True:
         try:
@@ -47,11 +80,11 @@ def download_newspaper_pages(url):
             time.sleep(5)
 
             # Rename the downloaded file
-            downloaded_files = [f for f in os.listdir("newspaper_pdfs") if f.endswith('.pdf')]
+            downloaded_files = [f for f in os.listdir(download_folder) if f.endswith('.pdf')]
             if downloaded_files:
-                latest_file = max(downloaded_files, key=lambda f: os.path.getmtime(os.path.join("newspaper_pdfs", f)))
+                latest_file = max(downloaded_files, key=lambda f: os.path.getmtime(os.path.join(download_folder, f)))
                 new_file_name = f"page_{current_page}.pdf"
-                os.rename(os.path.join("newspaper_pdfs", latest_file), os.path.join("newspaper_pdfs", new_file_name))
+                os.rename(os.path.join(download_folder, latest_file), os.path.join(download_folder, new_file_name))
 
             # Find and click the "next" button
             next_button = WebDriverWait(driver, 10).until(
@@ -72,5 +105,5 @@ def download_newspaper_pages(url):
     driver.quit()
 
 # Usage
-newspaper_url = "https://www.loc.gov/resource/sn96086912/1882-10-07/ed-1/?sp=1&st=image&r=-1.719,-0.087,4.438,1.742,0"
+newspaper_url = "https://www.loc.gov/resource/sn96086912/1882-10-07/ed-1/?sp=1&st=image"
 download_newspaper_pages(newspaper_url)
