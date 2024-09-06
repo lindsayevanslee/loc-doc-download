@@ -189,3 +189,4 @@ download_newspaper_pages(newspaper_url)
 
 #TODO:
 # also download the OCR ALTO file
+# fix download renaming issue for some pages
