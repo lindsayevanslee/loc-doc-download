@@ -18,7 +18,7 @@ def get_publication_info(driver, xpath, item_description):
         )
         return info_element.text.strip()
     except Exception as e:
-        print(f"Error getting publication {item_description}: {str(e)}")
+        print(f"Error getting publication {item_description}")
         return f"Unknown_{item_description}"
 
 def sanitize_filename(filename):
@@ -53,8 +53,27 @@ def extract_and_save_metadata(driver, download_folder):
         
         print("Metadata saved successfully.")
     except Exception as e:
-        print(f"Error extracting metadata: {str(e)}")
+        print(f"Error extracting metadata")
         
+
+
+def handle_technical_difficulties(driver, max_retries=3, delay=5):
+    """
+    Handle the "We're experiencing technical difficulties" error by refreshing the page.
+    
+    :param driver: The Selenium WebDriver instance
+    :param max_retries: Maximum number of refresh attempts
+    :param delay: Delay between refresh attempts in seconds
+    :return: True if the error is resolved, False otherwise
+    """
+    for attempt in range(max_retries):
+        if "site-error" in driver.page_source:
+            print(f"Encountered technical difficulties. Attempt {attempt + 1} of {max_retries} to refresh...")
+            driver.refresh()
+            time.sleep(delay)
+        else:
+            return True
+    return False
 
 def download_newspaper_pages(url):
     chrome_options = Options()
@@ -63,7 +82,6 @@ def download_newspaper_pages(url):
 
     while True:  # Main loop to cycle through all issues
         # Get the publication title and date and sanitize it to use as a folder name
-        #publication_title = get_publication_info(driver, './/div[@id="item-cataloged-data"]//ul[@aria-labelledby="item-title"]/li', "title")
         publication_title = get_publication_info(driver, './/div[@id="part-of"]//ul[@aria-labelledby="item-facet-part-of"]/li[1]/a', "title")
         publication_date = get_publication_info(driver, './/div[@id="facets-box"]//ul[@aria-labelledby="item-facet-dates"]/li/a', "date")
         
@@ -91,6 +109,11 @@ def download_newspaper_pages(url):
 
         while True:  # Inner loop for pages within an issue
             try:
+                # Check for technical difficulties and handle if necessary
+                if not handle_technical_difficulties(driver):
+                    print("Unable to resolve technical difficulties. Skipping to next issue.")
+                    break
+
                 # Wait for the download button to be present
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "download")))
 
@@ -117,6 +140,10 @@ def download_newspaper_pages(url):
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "next")]'))
                 )
+
+                if "off" in next_button.get_attribute("class"):
+                    print("Reached the last page of the current issue.")
+                    break
                 next_button.click()
 
                 time.sleep(2)
@@ -124,37 +151,41 @@ def download_newspaper_pages(url):
             except StaleElementReferenceException:
                 print("Page reloaded, retrying...")
                 continue
-            except NoSuchElementException:
-                print("Reached the last page of the current issue.")
-                break
+
             except Exception as e:
                 print(f"An error occurred while downloading pages: {str(e)}")
                 break
 
         # After finishing all pages of the current issue, try to move to the next issue
         try:
+            # Check for technical difficulties before moving to the next issue
+            if not handle_technical_difficulties(driver):
+                print("Unable to resolve technical difficulties. Exiting.")
+                break
+
             # Look for the "Next issue" button
             next_issue_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, '//a[contains(@aria-labelledby, "next issue")]'))
             )
+
+            if "off" in next_issue_button.get_attribute("class"):
+                    print("Reached the last issue.")
+                    break
+
             next_issue_button.click()
             print("Moving to the next issue...")
             time.sleep(5)  # Wait for the new issue page to load
             url = driver.current_url  # Update the URL for the next iteration
-        except TimeoutException:
-            print("No more issues available. Finished downloading all issues.")
-            break
+
         except Exception as e:
             print(f"An error occurred while moving to the next issue: {str(e)}")
             break
 
     driver.quit()
 
-# URL of first page of first issue
+# Usage
 newspaper_url = "https://www.loc.gov/resource/sn96086912/1882-10-07/ed-1/?sp=1&st=image"
 download_newspaper_pages(newspaper_url)
 
-
 #TODO:
-#try again if a page doesn't download properly
-#also download the OCR text
+# also download the OCR ALTO file
