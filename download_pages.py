@@ -148,7 +148,7 @@ def download_and_rename_file(driver, download_folder, file_type, current_page):
     if file_type == "OCR(ALTO)":
         file_extension = "xml" 
     elif file_type == "PDF":
-        file_extension = "xml" = "pdf"
+        file_extension = "pdf"
 
     latest_file = wait_for_download_complete(download_folder, file_extension)
     print(f"Latest file: {latest_file}")
@@ -218,7 +218,7 @@ def download_newspaper_pages(url):
                 download_and_rename_file(driver, download_folder, "PDF", current_page)
 
                 # Download OCR ALTO
-                #download_and_rename_file(driver, download_folder, "OCR(ALTO)", current_page)
+                download_and_rename_file(driver, download_folder, "OCR(ALTO)", current_page)
 
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "next")]'))
