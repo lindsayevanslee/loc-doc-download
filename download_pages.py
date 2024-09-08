@@ -9,6 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
 import os
 import json
+import glob
 
 def get_publication_info(driver, xpath, item_description):
     try:
@@ -75,8 +76,61 @@ def handle_technical_difficulties(driver, max_retries=3, delay=5):
             return True
     return False
 
+
+def wait_for_download_complete(directory, timeout=60, check_interval=1):
+    """Wait for the download to complete by monitoring file size."""
+    deadline = time.time() + timeout
+    latest_file = None
+    last_size = -1
+
+    while time.time() < deadline:
+        # Find the latest PDF file in the directory that doesn't start with "page_"
+        files = [f for f in glob.glob(os.path.join(directory, '*.pdf')) if not os.path.basename(f).startswith('page_')]
+        if not files:
+            time.sleep(check_interval)
+            continue
+        
+        latest_file = max(files, key=os.path.getmtime)
+        
+        # Check if the file size has stopped changing
+        current_size = os.path.getsize(latest_file)
+        if current_size == last_size:
+            return latest_file  # Download is complete
+        
+        last_size = current_size
+        time.sleep(check_interval)
+    
+    return None  # Timeout reached
+
+def rename_latest_file(latest_file, new_file_name, max_attempts=5, delay=1):
+    """Rename the downloaded file with multiple attempts."""
+    if not latest_file:
+        print("No file to rename.")
+        return False
+
+    for attempt in range(max_attempts):
+        try:
+            new_file_path = os.path.join(os.path.dirname(latest_file), new_file_name)
+            
+            # If a file with the new name already exists, delete it
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+            
+            os.rename(latest_file, new_file_path)
+            print(f"Successfully renamed file to {new_file_name}")
+            return True
+        except Exception as e:
+            print(f"Error renaming file (attempt {attempt + 1}): {str(e)}")
+            time.sleep(delay)
+    
+    print(f"Failed to rename file after {max_attempts} attempts")
+    return False
+
+
+
 def download_newspaper_pages(url):
     chrome_options = Options()
+    chrome_options.add_argument("--window-size=500,500")
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
 
@@ -102,6 +156,7 @@ def download_newspaper_pages(url):
             "download.directory_upgrade": True,
             "plugins.always_open_pdf_externally": True
         })
+
 
         driver.quit()
         driver = webdriver.Chrome(options=chrome_options)
@@ -129,13 +184,18 @@ def download_newspaper_pages(url):
                 )
                 download_button.click()
 
-                time.sleep(5)
-
-                downloaded_files = [f for f in os.listdir(download_folder) if f.endswith('.pdf')]
-                if downloaded_files:
-                    latest_file = max(downloaded_files, key=lambda f: os.path.getmtime(os.path.join(download_folder, f)))
+                # Wait for the download to complete and get the file path
+                latest_file = wait_for_download_complete(download_folder)
+                print(f"Latest file: {latest_file}")
+                if latest_file:
+                    print("Download completed successfully")
                     new_file_name = f"page_{current_page}.pdf"
-                    os.rename(os.path.join(download_folder, latest_file), os.path.join(download_folder, new_file_name))
+                    if rename_latest_file(latest_file, new_file_name):
+                        print(f"Successfully processed page {current_page}, renaming file {latest_file} to {new_file_name}")
+                    else:
+                        print(f"Warning: Could not rename file for page {current_page}")
+                else:
+                    print("Download timed out or failed")
 
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "next")]'))
