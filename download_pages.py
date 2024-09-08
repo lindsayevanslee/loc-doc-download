@@ -77,15 +77,15 @@ def handle_technical_difficulties(driver, max_retries=3, delay=5):
     return False
 
 
-def wait_for_download_complete(directory, timeout=60, check_interval=1):
+def wait_for_download_complete(directory, file_ext, timeout=60, check_interval=1):
     """Wait for the download to complete by monitoring file size."""
     deadline = time.time() + timeout
     latest_file = None
     last_size = -1
 
     while time.time() < deadline:
-        # Find the latest PDF file in the directory that doesn't start with "page_"
-        files = [f for f in glob.glob(os.path.join(directory, '*.pdf')) if not os.path.basename(f).startswith('page_')]
+        # Find the latest file of type file_ext in the directory that doesn't start with "page_"
+        files = [f for f in glob.glob(os.path.join(directory, f'*.{file_ext}')) if not os.path.basename(f).startswith('page_')]
         if not files:
             time.sleep(check_interval)
             continue
@@ -128,9 +128,44 @@ def rename_latest_file(latest_file, new_file_name, max_attempts=5, delay=1):
 
 
 
+def download_and_rename_file(driver, download_folder, file_type, current_page):
+    """file_type = 'PDF' or 'OCR(ALTO)' """
+
+    if file_type == "OCR(ALTO)":
+        # Select the OCR(ALTO) option from the dropdown
+        download_dropdown = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "download"))
+        )
+        download_dropdown.find_element(By.XPATH, f"//option[contains(text(), '{file_type}')]").click()
+
+    # Click the "Go" button
+    download_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, './/div[@class="files input-group-small"]//button[@type="submit"]'))
+    )
+    download_button.click()
+
+    # Wait for the download to complete and get the file path
+    if file_type == "OCR(ALTO)":
+        file_extension = "xml" 
+    elif file_type == "PDF":
+        file_extension = "xml" = "pdf"
+
+    latest_file = wait_for_download_complete(download_folder, file_extension)
+    print(f"Latest file: {latest_file}")
+    if latest_file:
+        print(f"{file_type} download completed successfully")
+        new_file_name = f"page_{current_page}.{file_extension}"
+        if rename_latest_file(latest_file, new_file_name):
+            print(f"Successfully processed {file_type} for page {current_page}")
+        else:
+            print(f"Warning: Could not rename {file_type} file for page {current_page}")
+    else:
+        print(f"{file_type} download timed out or failed")
+
+
 def download_newspaper_pages(url):
     chrome_options = Options()
-    chrome_options.add_argument("--window-size=500,500")
+    #chrome_options.add_argument("--window-size=500,500")
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
 
@@ -172,30 +207,18 @@ def download_newspaper_pages(url):
                 # Wait for the download button to be present
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "download")))
 
-                dropdown = WebDriverWait(driver, 10).until(
+                page_dropdown = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.ID, "page"))
                 )
 
-                current_page = dropdown.find_element(By.CSS_SELECTOR, "option[selected]").get_attribute("value")
-                print(f"Downloading page {current_page}")
+                current_page = page_dropdown.find_element(By.CSS_SELECTOR, "option[selected]").get_attribute("value")
+                print(f"Processing page {current_page}")
 
-                download_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, './/div[@class="files input-group-small"]//button[@type="submit"]'))
-                )
-                download_button.click()
+                # Download PDF
+                download_and_rename_file(driver, download_folder, "PDF", current_page)
 
-                # Wait for the download to complete and get the file path
-                latest_file = wait_for_download_complete(download_folder)
-                print(f"Latest file: {latest_file}")
-                if latest_file:
-                    print("Download completed successfully")
-                    new_file_name = f"page_{current_page}.pdf"
-                    if rename_latest_file(latest_file, new_file_name):
-                        print(f"Successfully processed page {current_page}, renaming file {latest_file} to {new_file_name}")
-                    else:
-                        print(f"Warning: Could not rename file for page {current_page}")
-                else:
-                    print("Download timed out or failed")
+                # Download OCR ALTO
+                #download_and_rename_file(driver, download_folder, "OCR(ALTO)", current_page)
 
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "next")]'))
@@ -249,4 +272,3 @@ download_newspaper_pages(newspaper_url)
 
 #TODO:
 # also download the OCR ALTO file
-# fix download renaming issue for some pages
