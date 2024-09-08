@@ -11,6 +11,23 @@ import os
 import json
 import glob
 
+def setup_chrome_options(current_chrome_options, download_folder):
+    #chrome_options = Options()
+    current_chrome_options.add_experimental_option("prefs", {
+        "download.default_directory": download_folder,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.always_open_pdf_externally": True,
+        "safebrowsing.enabled": True
+    })
+    
+    # Force XML files to be downloaded instead of opened in the browser
+    current_chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    current_chrome_options.add_argument('--safebrowsing-disable-download-protection')
+    current_chrome_options.add_argument('--safebrowsing-disable-extension-blacklist')
+    
+    return current_chrome_options
+
 def get_publication_info(driver, xpath, item_description):
     try:
         # Wait for the title element to be present
@@ -165,7 +182,7 @@ def download_and_rename_file(driver, download_folder, file_type, current_page):
 
 def download_newspaper_pages(url):
     chrome_options = Options()
-    #chrome_options.add_argument("--window-size=500,500")
+    chrome_options.add_argument("--window-size=500,500")
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
 
@@ -185,16 +202,12 @@ def download_newspaper_pages(url):
         # Extract and save metadata
         extract_and_save_metadata(driver, download_folder)
 
-        chrome_options.add_experimental_option("prefs", {
-            "download.default_directory": download_folder,
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "plugins.always_open_pdf_externally": True
-        })
+        # Set up Chrome options with the specific download folder
+        updated_chrome_options = setup_chrome_options(chrome_options, download_folder)
 
 
         driver.quit()
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Chrome(options=updated_chrome_options)
         driver.get(url)
 
         while True:  # Inner loop for pages within an issue
