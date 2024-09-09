@@ -148,36 +148,49 @@ def rename_latest_file(latest_file, new_file_name, max_attempts=5, delay=1):
 def download_and_rename_file(driver, download_folder, file_type, current_page):
     """file_type = 'PDF' or 'OCR(ALTO)' """
 
-    if file_type == "OCR(ALTO)":
-        # Select the OCR(ALTO) option from the dropdown
-        download_dropdown = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "download"))
-        )
-        download_dropdown.find_element(By.XPATH, f"//option[contains(text(), '{file_type}')]").click()
-
-    # Click the "Go" button
-    download_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, './/div[@class="files input-group-small"]//button[@type="submit"]'))
+    download_dropdown = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.ID, "download"))
     )
-    download_button.click()
 
-    # Wait for the download to complete and get the file path
     if file_type == "OCR(ALTO)":
-        file_extension = "xml" 
-    elif file_type == "PDF":
-        file_extension = "pdf"
+        # Find the OCR(ALTO) option and get its value
+        ocr_option = download_dropdown.find_element(By.XPATH, f"//option[contains(text(), '{file_type}')]")
+        download_url = ocr_option.get_attribute("value")
 
-    latest_file = wait_for_download_complete(download_folder, file_extension)
-    print(f"Latest file: {latest_file}")
-    if latest_file:
-        print(f"{file_type} download completed successfully")
-        new_file_name = f"page_{current_page}.{file_extension}"
-        if rename_latest_file(latest_file, new_file_name):
-            print(f"Successfully processed {file_type} for page {current_page}")
+        response = requests.get(download_url)
+        if response.status_code == 200:
+            file_path = os.path.join(download_folder, f"page_{current_page}.xml")
+            with open(file_path, 'wb') as file:
+                file.write(response.content)
+            print(f"Successfully downloaded OCR(ALTO) for page {current_page}")
         else:
-            print(f"Warning: Could not rename {file_type} file for page {current_page}")
+            print(f"Failed to download OCR(ALTO) for page {current_page}")
+
     else:
-        print(f"{file_type} download timed out or failed")
+        # For PDF, use the existing method
+        download_dropdown.find_element(By.XPATH, f"//option[contains(text(), '{file_type}')]").click()
+        download_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, './/div[@class="files input-group-small"]//button[@type="submit"]'))
+        )
+        download_button.click()
+
+        # Wait for the download to complete and get the file path
+        if file_type == "OCR(ALTO)":
+            file_extension = "xml" 
+        elif file_type == "PDF":
+            file_extension = "pdf"
+
+        latest_file = wait_for_download_complete(download_folder, file_extension)
+        print(f"Latest file: {latest_file}")
+        if latest_file:
+            print(f"{file_type} download completed successfully")
+            new_file_name = f"page_{current_page}.{file_extension}"
+            if rename_latest_file(latest_file, new_file_name):
+                print(f"Successfully processed {file_type} for page {current_page}")
+            else:
+                print(f"Warning: Could not rename {file_type} file for page {current_page}")
+        else:
+            print(f"{file_type} download timed out or failed")
 
 
 def download_newspaper_pages(url):
