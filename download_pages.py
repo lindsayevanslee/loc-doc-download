@@ -200,6 +200,12 @@ def download_newspaper_pages(url):
     driver.get(url)
 
     while True:  # Main loop to cycle through all issues
+
+        # Check for technical difficulties and handle if necessary
+        if not handle_technical_difficulties(driver):
+            print("Unable to resolve technical difficulties. Skipping to next issue.")
+            break
+
         # Get the publication title and date and sanitize it to use as a folder name
         publication_title = get_publication_info(driver, './/div[@id="part-of"]//ul[@aria-labelledby="item-facet-part-of"]/li[1]/a', "title")
         publication_date = get_publication_info(driver, './/div[@id="facets-box"]//ul[@aria-labelledby="item-facet-dates"]/li/a', "date")
@@ -268,9 +274,9 @@ def download_newspaper_pages(url):
         # After finishing all pages of the current issue, try to move to the next issue
         try:
             # Check for technical difficulties before moving to the next issue
-            if not handle_technical_difficulties(driver):
-                print("Unable to resolve technical difficulties. Exiting.")
-                break
+            #if not handle_technical_difficulties(driver):
+            #    print("Unable to resolve technical difficulties. Exiting.")
+            #    break
 
             # Look for the "Next issue" button
             next_issue_button = WebDriverWait(driver, 10).until(
@@ -295,6 +301,3 @@ def download_newspaper_pages(url):
 # Usage
 newspaper_url = "https://www.loc.gov/resource/sn96086912/1882-10-07/ed-1/?sp=1&st=image"
 download_newspaper_pages(newspaper_url)
-
-#TODO:
-# also download the OCR ALTO file
