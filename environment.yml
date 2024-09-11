@@ -5,10 +5,13 @@ channels:
 dependencies:
   - python=3.11.8
   - pip=23.2.1
-  - requests=2.32.3
-  - beautifulsoup4=4.12.3
-  - selenium=4.24.0
+  - requests=2.32.3  # For making HTTP requests
+  - selenium=4.24.0 # For web scraping
+  - Pillow=10.2.0  # Required for image processing
+  - pytesseract=0.3.13  # OCR engine
+  - pdf2image=1.17.0  # For converting PDF to images
+  - lxml=5.3.0  # For XML parsing (used by xml.etree.ElementTree)
   - pip:
     - webdriver-manager==4.0.2
-
+    
 prefix: ./envs
