@@ -10,54 +10,41 @@ def process_pdf(pdf_path, alto_path):
     
     # Parse ALTO XML
     tree = ET.parse(alto_path)
-    #print(tree)
-
-    # Get root element
     root = tree.getroot()
-    #print(root)
     
-    #All text blocks from alto file
-    alto_blocks = root.findall(".//{http://www.loc.gov/standards/alto/ns-v2#}TextBlock")
-
-    # Initialize list to store text blocks
-    text_blocks = []
+    # Get measurement unit and image dimensions
+    measurement_unit = root.find(".//{http://www.loc.gov/standards/alto/ns-v2#}MeasurementUnit").text
+    width = int(root.find(".//{http://www.loc.gov/standards/alto/ns-v2#}Page").get('WIDTH'))
+    height = int(root.find(".//{http://www.loc.gov/standards/alto/ns-v2#}Page").get('HEIGHT'))
     
-    # Extract text blocks from ALTO XML
-    for text_block in alto_blocks:
-        text_blocks.append({
-            'id': text_block.get('ID'),
-            'hpos': int(text_block.get('HPOS')),
-            'vpos': int(text_block.get('VPOS')),
-            'width': int(text_block.get('WIDTH')),
-            'height': int(text_block.get('HEIGHT'))
-        })
-        #print(text_blocks)
+    # Calculate scaling factor (assuming 300 DPI)
+    scale_factor = image.width / width
     
-    # Perform OCR on the entire image
-    print("Performing OCR on the entire image")
-    ocr_text = pytesseract.image_to_string(image)
-    
-    # Refine OCR results using ALTO XML information
-    print("Refining OCR results using ALTO XML information")
-    refined_text = refine_ocr(image, text_blocks, ocr_text)
+    # Extract text content using ALTO XML structure
+    refined_text = extract_text_from_alto(root, scale_factor)
     
     # Save refined text to file
     with open(pdf_path.replace(".pdf", "_ocr.txt"), "w", encoding="utf-8") as f:
         f.write(refined_text)
 
-def refine_ocr(image, text_blocks, ocr_text):
+def extract_text_from_alto(root, scale_factor):
+    namespace = {'alto': 'http://www.loc.gov/standards/alto/ns-v2#'}
     refined_text = ""
     
-    for block in text_blocks:
-        # Crop image to text block coordinates
-        cropped = image.crop((block['hpos'], block['vpos'], 
-                              block['hpos'] + block['width'], 
-                              block['vpos'] + block['height']))
-        
-        # Perform OCR on cropped image
-        block_text = pytesseract.image_to_string(cropped)
-        
-        # Add block text to refined text
+    for text_block in root.findall(".//alto:TextBlock", namespace):
+        block_text = ""
+        for text_line in text_block.findall(".//alto:TextLine", namespace):
+            line_text = ""
+            for string in text_line.findall(".//alto:String", namespace):
+                content = string.get('CONTENT')
+                style = string.get('STYLEREFS')
+                # Apply style formatting if needed
+                if style and 'I' in style:
+                    content = f"*{content}*"  # Italics
+                elif style and 'M' in style:
+                    content = content.upper()  # Small caps
+                line_text += content + " "
+            block_text += line_text.strip() + "\n"
         refined_text += block_text + "\n"
     
     return refined_text
