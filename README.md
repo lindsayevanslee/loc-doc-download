@@ -1,5 +1,5 @@
 # loc-doc-download
-Library of Congress document download
+Library of Congress newspaper download. Read more about it in my [blog post](https://lindsay.codes/posts/library-of-congress-download/).
 
 ## Overview
 This repository contains scripts to automate the downloading and renaming of newspaper pages from the Library of Congress website. The primary functionality includes:
